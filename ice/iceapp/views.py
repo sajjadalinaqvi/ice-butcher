@@ -2,9 +2,11 @@
 import os
 import base64
 import io
+from datetime import datetime
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
 from huggingface_hub import InferenceClient
 from PIL import Image
 
@@ -42,12 +44,25 @@ def generate_image(request):
             model=MODEL_ID,
         )
 
+        # Save image locally
+        media_dir = os.path.join(settings.BASE_DIR, "generated_images")
+        os.makedirs(media_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"ice_sculpture_{timestamp}.png"
+        filepath = os.path.join(media_dir, filename)
+        image.save(filepath)
+
         # Convert to base64 for frontend
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-        return JsonResponse({"image_base64": img_b64})
+        return JsonResponse({
+            "image_base64": img_b64,
+            "saved_path": filepath,
+            "filename": filename
+        })
 
     except Exception as e:
         return JsonResponse({"error": f"HF request failed: {str(e)}"}, status=502)
